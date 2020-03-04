@@ -3,15 +3,9 @@ import pommerman
 import numpy as np
 from pommerman.envs.v0 import Pomme
 from pommerman import agents,constants
-from gym.envs.registration import register
 from gym import spaces
 from reward import Reward
 
-
-# register(
-#     id='PomFFA-v2',
-#     entry_point='env:PomFFA',
-# )
 
 class PomFFA(gym.Env):
 
@@ -30,20 +24,26 @@ class PomFFA(gym.Env):
             for k, v in env_config.items():
                 if k in pomme_config['env_kwargs']:
                     pomme_config['env_kwargs'][k] = v
+            self.reward = Reward(env_config.get("reward"))
+        else:
+            self.reward = Reward()
 
         print(pomme_config['env_kwargs'])
 
 
         self.pomme = Pomme(**pomme_config['env_kwargs'])
-        self.reward = Reward(env_config.get("reward"))
+
         self.observation_space = self.init_observation_space(pomme_config['env_kwargs'])
         self.action_space = self.pomme.action_space
-        self.init(pomme_config)
 
+        if not env_config or (env_config and env_config.get("is_training",True)):
+            # initialize env twice could raise error here.
+            self.init(pomme_config)
 
     def init(self,pomm_config):
         for id_, agent in enumerate(self.agent_list):
             assert isinstance(agent, agents.BaseAgent)
+            print(id_,pomm_config['game_type'])
             agent.init_agent(id_, pomm_config['game_type'])
         self.pomme.set_agents(self.agent_list)
         self.pomme.set_init_game_state(None)
@@ -120,10 +120,10 @@ class PomFFA(gym.Env):
 
 
 if __name__ == '__main__':
-    # env = gym.make("PomFFA-v0")
     env = PomFFA()
     obs = env.reset()
-    print (obs)
+    print(obs)
+
     # for i in range(20):
     #     obs, reward, done, _ = env.step(0)
     #     print(obs, reward, done)
