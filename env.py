@@ -5,6 +5,7 @@ from pommerman.envs.v0 import Pomme
 from pommerman import agents,constants
 from gym.envs.registration import register
 from gym import spaces
+from reward import Reward
 
 
 # register(
@@ -13,13 +14,13 @@ from gym import spaces
 # )
 
 class PomFFA(gym.Env):
-    '''
-    A wrapped Pommerman v0 environment for usage with Ray RLlib. The v0 environment is the base environment used in
-    the NIPS'18 competition. Contrary to v1 it doesn't collapse walls and also doesn't allow for radio communication
-    between agents (as does v2).
-    Agents are identified by (string) agent IDs: `AGENT_IDS`
-    (Note that these "agents" here are not to be confused with RLlib agents.)
-    '''
+
+    agent_list = [agents.SimpleAgent(), agents.SimpleAgent(), agents.SimpleAgent(), agents.RandomAgent()]
+    all_obs = None
+    all_action = None
+    cur_obs = None
+    alive_agents = [10, 11, 12, 13]
+    agent_id = 13
 
     def __init__(self, env_config=None):
 
@@ -27,36 +28,32 @@ class PomFFA(gym.Env):
 
         if env_config:
             for k, v in env_config.items():
-                pomme_config['env_kwargs'][k] = v
+                if k in pomme_config['env_kwargs']:
+                    pomme_config['env_kwargs'][k] = v
+
         print(pomme_config['env_kwargs'])
+
+
         self.pomme = Pomme(**pomme_config['env_kwargs'])
+        self.reward = Reward(env_config.get("reward"))
         self.observation_space = self.init_observation_space(pomme_config['env_kwargs'])
         self.action_space = self.pomme.action_space
-        print(self.observation_space.shape)
-        agent_list = [agents.SimpleAgent(), agents.SimpleAgent(), agents.SimpleAgent(), agents.RandomAgent()]
-        self.init(agent_list, pomme_config)
-
-        # record all agents
-        self.all_obs = None
-        self.all_action = None
-        self.alive_agents = [10,11,12,13]
-
-        self.training_agent_id = 13
+        self.init(pomme_config)
 
 
-    def init(self, agent_list, pomm_config):
-        for id_, agent in enumerate(agent_list):
+    def init(self,pomm_config):
+        for id_, agent in enumerate(self.agent_list):
             assert isinstance(agent, agents.BaseAgent)
             agent.init_agent(id_, pomm_config['game_type'])
-        self.pomme.set_agents(agent_list)
+        self.pomme.set_agents(self.agent_list)
         self.pomme.set_init_game_state(None)
 
     def reset(self):
         obs = self.pomme.reset()
         self.all_obs = obs
         obs = self.get_for_training_agent(obs)
-        # obs = self.obs2vec(obs)
-        obs = self.remove_useless_obs(obs)
+        self.cur_obs = obs
+        obs = self.preproess(obs)
         return obs
 
     def step(self, action):
@@ -65,22 +62,21 @@ class PomFFA(gym.Env):
             actions = self.set_for_training_agent(actions, action)
         else:
             actions = self.set_for_training_agent(actions, 0)
-        print(actions)
         obs, rewards, done, info = self.pomme.step(actions)
         self.all_obs = obs
         obs = self.get_for_training_agent(obs)
-        reward = self.get_for_training_agent(rewards)
+        self.cur_obs = obs
+        reward = self.reward.get_reward(self.cur_obs, action, self.agent_id)
         self.alive_agents = obs['alive']
-        # obs = self.obs2vec(obs)
-        obs = self.remove_useless_obs(obs)
+        obs = self.preproess(obs)
         return obs, reward, done, {}
 
     def get_for_training_agent(self, inputs):
-        order = self.training_agent_id - 10
+        order = self.agent_id - 10
         return inputs[order]
 
     def set_for_training_agent(self, inputs, value):
-        order = self.training_agent_id - 10
+        order = self.agent_id - 10
         inputs[order] = value
         return inputs
 
@@ -93,7 +89,6 @@ class PomFFA(gym.Env):
         """
         board_size = env_config['board_size']
         num_items = env_config['num_items']
-        bss = board_size ** 2
 
         board = spaces.Box(low=0,high=len(constants.Item),shape=(board_size,board_size))
         bomb_blast_strength = spaces.Box(low=0,high=num_items,shape=(board_size,board_size))
@@ -102,29 +97,11 @@ class PomFFA(gym.Env):
         position = spaces.Box(low=0,high=board_size,shape=(2,))
         blast_strength = spaces.Box(low=1,high=num_items,shape=(1,))
         ammo = spaces.Box(low=1,high=num_items,shape=(1,))
-
-        # min_obs = [0] * 4 * bss + [0] * 4
-        # max_obs = [len(constants.Item)] * bss + [board_size] * bss + [25] * bss + [5]*bss
-        # max_obs += [board_size] * 2 + [num_items] * 2
-        # return spaces.Box(np.array(min_obs), np.array(max_obs))
-
         return spaces.Dict({"board":board,"bomb_blast_strength":bomb_blast_strength,"bomb_life":bomb_life,"flame_life":flame_life,
                             "position":position,"ammo":ammo,"blast_strength":blast_strength})
 
     @staticmethod
-    def obs2vec(obs):
-        board = obs['board'].flatten()
-        bomb_blast_strength = obs['bomb_blast_strength'].flatten()
-        bomb_life = obs['bomb_life'].flatten()
-        flame_life = obs['flame_life'].flatten()
-        position = obs['position']
-        blast_strength = obs['blast_strength']
-        ammo = obs['ammo']
-        res = np.hstack([board,bomb_blast_strength,bomb_life,flame_life]+list(position) + [blast_strength,ammo])
-        return res
-
-    @staticmethod
-    def remove_useless_obs(obs):
+    def preproess(obs):
         del obs["game_type"]
         del obs["game_env"]
         del obs["can_kick"]
@@ -136,8 +113,6 @@ class PomFFA(gym.Env):
         obs['position'] = np.array(obs['position'])
         obs['ammo'] = np.array([obs['ammo']])
         obs['blast_strength'] = np.array([obs['blast_strength']])
-        # del obs['ammo']
-        # del obs['blast_strength']
         return obs
 
     def render(self):
