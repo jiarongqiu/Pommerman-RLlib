@@ -28,7 +28,7 @@ class PomFFA(gym.Env):
         else:
             self.reward = Reward()
 
-        print(pomme_config['env_kwargs'])
+        print("Pommerman Config:",pomme_config['env_kwargs'])
 
 
         self.pomme = Pomme(**pomme_config['env_kwargs'])

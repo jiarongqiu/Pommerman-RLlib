@@ -1,12 +1,13 @@
 import env
 import ray
 import ray.rllib.agents.a3c as a3c
+import ray.rllib.agents.ppo as ppo
 import models
 from ray.tune.logger import pretty_print
 from ray.tune.registry import register_env
 from ray.rllib.models import ModelCatalog
 
-ModelCatalog.register_custom_model("my_model", models.FullyConnectedNetwork)
+ModelCatalog.register_custom_model("my_model", models.VGG)
 
 
 def env_creator(env_config):
@@ -26,8 +27,8 @@ config["model"] = {
     "custom_model": "my_model",
     "custom_options": {"num_hiddens": [128, 32]},  # extra options to pass to your model
 }
-print(config)
-trainer = a3c.A2CTrainer(env="my_env", config=config)
+# trainer = a3c.A2CTrainer(env="my_env", config=config)
+trainer = ppo.PPOTrainer(env="my_env", config=config)
 
 # Can optionally call trainer.restore(path) to load a checkpoint.
 
