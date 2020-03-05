@@ -2,6 +2,7 @@ class Reward():
 
     def __init__(self, config=None):
         self.config = config
+        print("Reward Config:",config)
 
     def get_reward(self, obs, action, agent_id):
         if not self.config or self.config['version'] == 'default':
@@ -28,3 +29,4 @@ class Reward():
                 return 0
             else:
                 return -1
+

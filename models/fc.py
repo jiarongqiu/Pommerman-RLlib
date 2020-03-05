@@ -20,7 +20,7 @@ class FullyConnectedNetwork(TorchModelV2, nn.Module):
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs,
                               model_config, name)
         nn.Module.__init__(self)
-
+        print(model_config)
         hiddens = model_config.get("fcnet_hiddens")
         activation = _get_activation_fn(model_config.get("fcnet_activation"))
         logger.debug("Constructing fcnet {} {}".format(hiddens, activation))

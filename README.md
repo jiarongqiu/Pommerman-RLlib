@@ -7,6 +7,11 @@
 cd playground
 conda env create -f env.yml
 ```
+
+To update pommerman environment
+```bash
+pip install .
+```
 * RLlib & libs:
 
 ```bash

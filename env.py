@@ -28,7 +28,7 @@ class PomFFA(gym.Env):
         else:
             self.reward = Reward()
 
-        print(pomme_config['env_kwargs'])
+        print("Pommerman Config:",pomme_config['env_kwargs'])
 
 
         self.pomme = Pomme(**pomme_config['env_kwargs'])
@@ -43,7 +43,6 @@ class PomFFA(gym.Env):
     def init(self,pomm_config):
         for id_, agent in enumerate(self.agent_list):
             assert isinstance(agent, agents.BaseAgent)
-            print(id_,pomm_config['game_type'])
             agent.init_agent(id_, pomm_config['game_type'])
         self.pomme.set_agents(self.agent_list)
         self.pomme.set_init_game_state(None)
@@ -96,7 +95,7 @@ class PomFFA(gym.Env):
         flame_life = spaces.Box(low=0,high=3,shape=(board_size,board_size))
         position = spaces.Box(low=0,high=board_size,shape=(2,))
         blast_strength = spaces.Box(low=1,high=num_items,shape=(1,))
-        ammo = spaces.Box(low=1,high=num_items,shape=(1,))
+        ammo = spaces.Box(low=0,high=num_items,shape=(1,))
         return spaces.Dict({"board":board,"bomb_blast_strength":bomb_blast_strength,"bomb_life":bomb_life,"flame_life":flame_life,
                             "position":position,"ammo":ammo,"blast_strength":blast_strength})
 
