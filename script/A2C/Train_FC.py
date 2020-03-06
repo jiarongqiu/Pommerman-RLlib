@@ -73,8 +73,8 @@ model_config = {
 
 def game_train():
     config = a3c.DEFAULT_CONFIG.copy()
-    config["num_gpus"] = 0
-    config["num_workers"] = 1
+    config["num_gpus"] = 1
+    config["num_workers"] = 6
     config["eager"] = False
     config["use_pytorch"] = True
     config["model"] = model_config
@@ -96,7 +96,7 @@ def game_eval():
     env = PomFFA()
     obs = env.reset()
 
-    model_path = "/Users/jiarongqiu/ray_results/A2C_my_env_2020-03-03_21-14-17xifin5lb/checkpoint_1/checkpoint-1"
+    model_path = "/home/subill/ray_results/A2C_pom_2020-03-04_16-49-377fgvw_gr/checkpoint_601/checkpoint-601"
 
     config = a3c.DEFAULT_CONFIG.copy()
     config["num_gpus"] = 1
