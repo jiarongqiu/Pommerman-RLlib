@@ -1,4 +1,5 @@
 from .fc import FullyConnectedNetwork
 from .cnn import VisionNetwork
-from .vgg import VGG
+from .torch_vgg import TorchVGG
+from .tf_cnn import TFCNN
 
