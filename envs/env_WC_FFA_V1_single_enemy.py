@@ -10,10 +10,10 @@ from envs.HoldAgent import HoldAgent
 
 class PomFFA(gym.Env):
 
-
     def __init__(self, env_config=None):
 
         self.agent_list = [HoldAgent(), agents.SimpleAgent(), HoldAgent(), HoldAgent()]
+        # self.agent_list = [agents.SimpleAgent(), agents.SimpleAgent(), agents.SimpleAgent(), agents.RandomAgent()]
         self.all_obs = None
         self.all_action = None
         self.cur_obs = None
