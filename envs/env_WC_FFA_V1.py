@@ -56,27 +56,27 @@ class PomFFA(gym.Env):
         if len(obs["alive"]) == 1:
             # An agent won. Give them +1, others -1.
             if agent_id in obs['alive']:
-                return 100
+                return 1
             else:
-                return -100
+                return -1
 
         if obs["step_count"] >= 500:
             # Game is over from time. Everyone gets -1.
-            return -100
+            return -1
 
         # Game running: 0 for alive, -1 for dead.
         if agent_id not in obs['alive']:
-            return -100
-
-        x, y = obs["position"]
-        blast = obs["bomb_blast_strength"]
-
-        for w in range(11):
-            if blast[x][w] > int(math.fabs(w-y)):
-                return -10
-
-            if blast[w][y] > int(math.fabs((w-x))):
-                return -10
+            return -1
+        #
+        # x, y = obs["position"]
+        # blast = obs["bomb_blast_strength"]
+        #
+        # for w in range(11):
+        #     if blast[x][w] > int(math.fabs(w-y)):
+        #         return -10
+        #
+        #     if blast[w][y] > int(math.fabs((w-x))):
+        #         return -10
 
         return 0
 
@@ -95,6 +95,8 @@ class PomFFA(gym.Env):
         self.cur_obs = obs
         reward = self.get_reward(self.cur_obs, action, self.player_agent_id)
         self.alive_agents = obs['alive']
+        if (self.player_agent_id not in self.alive_agents) or obs["step_count"] >= 500:
+            done = True
         obs = self.preproess(obs)
         return obs, reward, done, {}
 

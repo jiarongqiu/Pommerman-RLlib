@@ -1,6 +1,5 @@
 import gym
 import pommerman
-import math
 import numpy as np
 from pommerman.envs.v0 import Pomme
 from pommerman import agents, constants
@@ -19,6 +18,7 @@ class PomFFA(gym.Env):
         self.cur_obs = None
         self.alive_agents = [10, 11, 12, 13]
         self.player_agent_id = 10
+        self.total_reward = 0
 
         pomme_config = pommerman.configs.ffa_competition_env()
 
@@ -50,23 +50,24 @@ class PomFFA(gym.Env):
         obs = self.get_for_training_agent(obs)
         self.cur_obs = obs.copy()
         obs = self.preproess(obs)
+        self.total_reward = 0
         return obs
 
     def get_reward(self, obs, action, agent_id):
         if len(obs["alive"]) == 1:
             # An agent won. Give them +1, others -1.
             if agent_id in obs['alive']:
-                return 200
+                return 0.5
             else:
-                return -200
+                return -0.5
 
         if obs["step_count"] >= 500:
             # Game is over from time. Everyone gets -1.
-            return -200
+            return -0.5
 
         # Game running: 0 for alive, -1 for dead.
         if agent_id not in obs['alive']:
-            return -200
+            return -0.5
 
         x, y = obs["position"]
         # blast = obs["bomb_blast_strength"]
@@ -85,6 +86,13 @@ class PomFFA(gym.Env):
                     sum_reward += 1
                 elif obs["board"][tx][ty] > 10:
                     sum_reward += 4
+
+        sum_reward = sum_reward*1.0/200.0
+        new_total_reward = self.total_reward + sum_reward
+        if new_total_reward > 0.5 or new_total_reward < -0.5:
+            sum_reward = 0
+        else:
+            self.total_reward = new_total_reward
 
         return sum_reward
 
