@@ -1,5 +1,6 @@
 import gym
 import pommerman
+import math
 import numpy as np
 from pommerman.envs.v0 import Pomme
 from pommerman import agents, constants
@@ -8,17 +9,14 @@ from agents.UtilAgents import HoldAgent
 
 
 class PomFFA(gym.Env):
+    agent_list = [HoldAgent(), HoldAgent(), HoldAgent(), HoldAgent()]
+    all_obs = None
+    all_action = None
+    cur_obs = None
+    alive_agents = [10, 11, 12, 13]
+    player_agent_id = 10
 
     def __init__(self, env_config=None):
-
-        self.agent_list = [HoldAgent(), agents.SimpleAgent(), HoldAgent(), HoldAgent()]
-        # self.agent_list = [agents.SimpleAgent(), agents.SimpleAgent(), agents.SimpleAgent(), agents.RandomAgent()]
-        self.all_obs = None
-        self.all_action = None
-        self.cur_obs = None
-        self.alive_agents = [10, 11, 12, 13]
-        self.player_agent_id = 10
-        self.total_reward = 0
 
         pomme_config = pommerman.configs.ffa_competition_env()
 
@@ -27,10 +25,15 @@ class PomFFA(gym.Env):
                 if k in pomme_config['env_kwargs']:
                     pomme_config['env_kwargs'][k] = v
 
+        print("pomme_config: ")
+        print(pomme_config['env_kwargs'])
+
         self.pomme = Pomme(**pomme_config['env_kwargs'])
 
         self.observation_space = self.init_observation_space(pomme_config['env_kwargs'])
         self.action_space = self.pomme.action_space
+
+        self.total_reward = 0
 
         if not env_config or (env_config and env_config.get("is_training", True)):
             # initialize env twice could raise error here.
@@ -46,9 +49,9 @@ class PomFFA(gym.Env):
 
     def reset(self):
         obs = self.pomme.reset()
-        self.all_obs = obs.copy()
+        self.all_obs = obs
         obs = self.get_for_training_agent(obs)
-        self.cur_obs = obs.copy()
+        self.cur_obs = obs
         obs = self.preproess(obs)
         self.total_reward = 0
         return obs
@@ -57,7 +60,7 @@ class PomFFA(gym.Env):
         if len(obs["alive"]) == 1:
             # An agent won. Give them +1, others -1.
             if agent_id in obs['alive']:
-                return 0.5
+                return 1.0 - self.total_reward
             else:
                 return -0.5
 
@@ -70,27 +73,47 @@ class PomFFA(gym.Env):
             return -0.5
 
         x, y = obs["position"]
-        # blast = obs["bomb_blast_strength"]
+        blast = obs["bomb_blast_strength"]
 
-        px = [0, 1, 0, -1]
-        py = [1, 0, -1, 0]
+        px = [1, -1, 0, 0]
+        py = [0, 0, -1, 1]
 
-        sum_reward = 0
-        if action == 5:
+        sum_reward = 0.0
+
+        if action == 0:
+            sum_reward -= 0.1
+            for tx in range(11):
+                for ty in range(11):
+                    if blast[tx][ty] > 0 and (
+                            (x == tx and abs(y - ty) < blast[tx][ty]) or (y == ty and abs(x - tx) < blast[tx][ty])):
+                        sum_reward -= 1
+        elif action == 5:
+            sum_reward += 1
             for i in range(4):
-                tx = x+px[i]
-                ty = y+py[i]
-                if tx<0 or tx>10 or ty<0 or ty>10:
+                tx = x + px[i]
+                ty = y + py[i]
+                if tx < 0 or tx > 10 or ty < 0 or ty > 10:
                     continue
                 if obs["board"][tx][ty] == 1:
-                    sum_reward += 1
+                    sum_reward += 2
                 elif obs["board"][tx][ty] > 10:
-                    sum_reward += 4
+                    sum_reward += 8
+        else:
+            assert(1 <= action <= 4), str(action)
+            dx = x + px[action-1]
+            dy = y + py[action-1]
+            if not (dx < 0 or dx > 10 or dy < 0 or dy > 10):
+                for tx in range(11):
+                    for ty in range(11):
+                        if blast[tx][ty] > 0 and (
+                                (dx == tx and abs(dy - ty) < blast[tx][ty]) or (
+                                dy == ty and abs(dx - tx) < blast[tx][ty])):
+                            sum_reward -= 0.5
 
-        sum_reward = sum_reward*1.0/200.0
+        sum_reward = sum_reward * 1.0 / 100.0
         new_total_reward = self.total_reward + sum_reward
         if new_total_reward > 0.5 or new_total_reward < -0.5:
-            sum_reward = 0
+            sum_reward = 0.0
         else:
             self.total_reward = new_total_reward
 
@@ -105,18 +128,15 @@ class PomFFA(gym.Env):
         obs, rewards, done, info = self.pomme.step(actions)
 
         # print(obs)
-        del self.all_obs
-        self.all_obs = obs.copy()
+
+        self.all_obs = obs
         obs = self.get_for_training_agent(obs)
-        del self.cur_obs
-        self.cur_obs = obs.copy()
+        self.cur_obs = obs
         reward = self.get_reward(self.cur_obs, action, self.player_agent_id)
         self.alive_agents = obs['alive']
-
-        if self.player_agent_id not in self.alive_agents or self.cur_obs["step_count"] >= 500:
+        if (self.player_agent_id not in self.alive_agents) or obs["step_count"] >= 500:
             done = True
         obs = self.preproess(obs)
-
         return obs, reward, done, {}
 
     def get_for_training_agent(self, inputs):
@@ -135,9 +155,9 @@ class PomFFA(gym.Env):
             bomb blast strength: n^2
             bomb life: n^2
         """
-        board_size = env_config['board_size']
-        num_items = env_config['num_items']
-        # print("env config: {}".format(env_config))
+        board_size = env_config['board_size'] or 11
+        num_items = env_config['num_items'] or 11
+        print("env config: {}".format(env_config))
         # board_size = 11
 
         board = spaces.Box(low=0, high=len(constants.Item), shape=(board_size, board_size))

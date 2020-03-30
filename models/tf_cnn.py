@@ -35,7 +35,7 @@ class TFCNN(TFModelV2):
         net = tf.keras.layers.BatchNormalization()(net)
         net = tf.reshape(net, (-1, net.shape[-1]))
 
-        # net = tf.concat([net, _attribute], axis=1)
+        net = tf.concat([net, _attribute], axis=1)
 
         net = tf.keras.layers.Dense(1024, activation=tf.nn.relu, kernel_initializer=normc_initializer(0.01))(net)
         # net = tf.keras.layers.Dense(128, activation=tf.nn.relu, kernel_initializer=normc_initializer(0.01))(net)

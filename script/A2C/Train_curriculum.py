@@ -9,8 +9,8 @@ from ray.rllib.models.catalog import MODEL_DEFAULTS
 from ray.tune.logger import pretty_print
 from ray.tune.registry import register_env
 
-from envs.env_WC_FFA_V1 import PomFFA
-# from envs.env_WC_FFA_curriculum_V1 import PomFFA
+# from envs.env_WC_FFA_V1 import PomFFA
+from envs.env_WC_FFA_curriculum_V1 import PomFFA
 from models.tf_cnn import TFCNN
 
 
@@ -118,7 +118,7 @@ def game_train():
     # config["lr"] = 0.0001
     config["lr_schedule"] = [[0, 5e-4], [2000000, 5e-5], [4000000, 1e-5], [6000000, 1e-6], [8000000, 1e-7]]
     # config["vf_clip_param"] = 0.5
-    config["grad_clip"] = 0.5
+    config["grad_clip"] = 10.0
 
     # trainer = a3c.A3CTrainer(env="pom", config=config)
     trainer = ppo.appo.APPOTrainer(env="pom", config=config)
@@ -139,7 +139,7 @@ def game_eval():
     env = PomFFA()
     obs = env.reset()
 
-    model_path = "/home/subill/ray_results/APPO_pom_2020-03-29_00-05-42_5225xam/checkpoint_3601/checkpoint-3601"
+    model_path = "/home/subill/ray_results/APPO_pom_2020-03-29_23-17-1453nucko4/checkpoint_3601/checkpoint-3601"
 
     # config = a3c.DEFAULT_CONFIG.copy()
     config = ppo.appo.DEFAULT_CONFIG.copy()
