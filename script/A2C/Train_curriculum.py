@@ -11,8 +11,9 @@ from ray.tune.registry import register_env
 
 # from envs.env_WC_FFA_V1 import PomFFA
 from envs.env_WC_FFA_curriculum_V1 import PomFFA
-from models.tf_cnn import TFCNN
-
+# from models.tf_cnn import TFCNN
+# from models.WC_tf_cnn_mf import TFCNN
+from models.WC_tf_cnn_A2C import TFCNN
 
 def env_creator(env_config):
     return PomFFA(env_config)
@@ -107,7 +108,7 @@ def env_creator(env_config):
 # })
 
 def game_train():
-    # config = a3c.DEFAULT_CONFIG.copy()
+    # config = a3c.a2c.A2C_DEFAULT_CONFIG.copy()
     config = ppo.appo.DEFAULT_CONFIG.copy()
     config["num_gpus"] = 1
     config["num_workers"] = 12
@@ -115,12 +116,13 @@ def game_train():
     config["model"] = model_config
 
     # trainer = ppo.PPOTrainer(env="pom", config=config)
-    # config["lr"] = 0.0001
-    config["lr_schedule"] = [[0, 5e-4], [2000000, 5e-5], [4000000, 1e-5], [6000000, 1e-6], [8000000, 1e-7]]
+    config["lr"] = 0.0001
+    # config["lr_schedule"] = [[0, 5e-4], [2000000, 5e-5], [4000000, 1e-5], [6000000, 1e-6], [8000000, 1e-7]]
     # config["vf_clip_param"] = 0.5
-    config["grad_clip"] = 10.0
+    config["grad_clip"] = 0.5
+    config["use_gae"] = False
 
-    # trainer = a3c.A3CTrainer(env="pom", config=config)
+    # trainer = a3c.a2c.A2CTrainer(env="pom", config=config)
     trainer = ppo.appo.APPOTrainer(env="pom", config=config)
     # Can optionally call trainer.restore(path) to load a checkpoint.
 
@@ -141,8 +143,8 @@ def game_eval():
 
     model_path = "/home/subill/ray_results/APPO_pom_2020-03-29_23-17-1453nucko4/checkpoint_3601/checkpoint-3601"
 
-    # config = a3c.DEFAULT_CONFIG.copy()
-    config = ppo.appo.DEFAULT_CONFIG.copy()
+    config = a3c.DEFAULT_CONFIG.copy()
+    # config = ppo.appo.DEFAULT_CONFIG.copy()
     config["num_gpus"] = 1
     config["num_workers"] = 1
     config["env_config"] = {

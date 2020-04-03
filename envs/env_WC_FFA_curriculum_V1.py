@@ -34,6 +34,8 @@ class PomFFA(gym.Env):
         self.action_space = self.pomme.action_space
 
         self.total_reward = 0
+        self.prev_alive = 4
+        self.visited = np.zeros(shape=(11, 11))
 
         if not env_config or (env_config and env_config.get("is_training", True)):
             # initialize env twice could raise error here.
@@ -54,6 +56,8 @@ class PomFFA(gym.Env):
         self.cur_obs = obs
         obs = self.preproess(obs)
         self.total_reward = 0
+        self.prev_alive = 4
+        self.visited = np.zeros(shape=(11, 11))
         return obs
 
     def get_reward(self, obs, action, agent_id):
@@ -80,15 +84,14 @@ class PomFFA(gym.Env):
 
         sum_reward = 0.0
 
+        sum_reward += 20 * (len(obs["alive"]) - self.prev_alive)
+        self.prev_alive = len(obs["alive"])
+
         if action == 0:
             sum_reward -= 0.1
-            for tx in range(11):
-                for ty in range(11):
-                    if blast[tx][ty] > 0 and (
-                            (x == tx and abs(y - ty) < blast[tx][ty]) or (y == ty and abs(x - tx) < blast[tx][ty])):
-                        sum_reward -= 1
+
         elif action == 5:
-            sum_reward += 1
+            # sum_reward += 1
             for i in range(4):
                 tx = x + px[i]
                 ty = y + py[i]
@@ -97,22 +100,22 @@ class PomFFA(gym.Env):
                 if obs["board"][tx][ty] == 1:
                     sum_reward += 2
                 elif obs["board"][tx][ty] > 10:
-                    sum_reward += 8
+                    sum_reward += 4
         else:
             assert(1 <= action <= 4), str(action)
             dx = x + px[action-1]
             dy = y + py[action-1]
-            if not (dx < 0 or dx > 10 or dy < 0 or dy > 10):
-                for tx in range(11):
-                    for ty in range(11):
-                        if blast[tx][ty] > 0 and (
-                                (dx == tx and abs(dy - ty) < blast[tx][ty]) or (
-                                dy == ty and abs(dx - tx) < blast[tx][ty])):
-                            sum_reward -= 0.5
+            if (not (dx < 0 or dx > 10 or dy < 0 or dy > 10)) and obs["board"][dx][dy] == 0:
+                if self.visited[dx][dy] > 0:
+                    sum_reward -= 0.1
+                else:
+                    sum_reward += 0.3
+                    self.visited[dx][dy] = 1
+
 
         sum_reward = sum_reward * 1.0 / 100.0
         new_total_reward = self.total_reward + sum_reward
-        if new_total_reward > 0.5 or new_total_reward < -0.5:
+        if new_total_reward > 0.8 or new_total_reward < -0.5:
             sum_reward = 0.0
         else:
             self.total_reward = new_total_reward
@@ -127,8 +130,6 @@ class PomFFA(gym.Env):
             actions = self.set_for_training_agent(actions, 0)
         obs, rewards, done, info = self.pomme.step(actions)
 
-        # print(obs)
-
         self.all_obs = obs
         obs = self.get_for_training_agent(obs)
         self.cur_obs = obs
@@ -141,7 +142,7 @@ class PomFFA(gym.Env):
 
     def get_for_training_agent(self, inputs):
         order = self.player_agent_id - 10
-        return inputs[order]
+        return inputs[order].copy()
 
     def set_for_training_agent(self, inputs, value):
         order = self.player_agent_id - 10
@@ -161,15 +162,22 @@ class PomFFA(gym.Env):
         # board_size = 11
 
         board = spaces.Box(low=0, high=len(constants.Item), shape=(board_size, board_size))
+        danger = spaces.Box(low=0, high=20, shape=(board_size, board_size))
         bomb_blast_strength = spaces.Box(low=0, high=num_items, shape=(board_size, board_size))
         bomb_life = spaces.Box(low=0, high=9, shape=(board_size, board_size))
-        flame_life = spaces.Box(low=0, high=3, shape=(board_size, board_size))
+        flame_life = spaces.Box(low=0, high=10, shape=(board_size, board_size))
         position = spaces.Box(low=0, high=board_size, shape=(2,))
         blast_strength = spaces.Box(low=1, high=num_items, shape=(1,))
         ammo = spaces.Box(low=0, high=num_items, shape=(1,))
-        return spaces.Dict({"board": board, "bomb_blast_strength": bomb_blast_strength, "bomb_life": bomb_life,
+        # return spaces.Dict({"board": board,
+        #                     "bomb_blast_strength": bomb_blast_strength, "bomb_life": bomb_life,
+        #                     "flame_life": flame_life,
+        #                     "position": position, "ammo": ammo, "blast_strength": blast_strength})
+        return spaces.Dict({"board": board,
+                            "bomb_blast_strength": bomb_blast_strength, "bomb_life": bomb_life,
                             "flame_life": flame_life,
-                            "position": position, "ammo": ammo, "blast_strength": blast_strength})
+                            "position": position, "ammo": ammo, "blast_strength": blast_strength,
+                            "danger": danger})
 
     @staticmethod
     def preproess(obs):
@@ -184,6 +192,45 @@ class PomFFA(gym.Env):
         obs['position'] = np.array(obs['position'])
         obs['ammo'] = np.array([obs['ammo']])
         obs['blast_strength'] = np.array([obs['blast_strength']])
+
+        board = obs['board']
+        bomb_blast_strength = obs['bomb_blast_strength']
+        bomb_life = obs['bomb_life']
+        # flame_life = obs['flame_life']
+        # position = obs['position']
+        # ammo = obs['ammo']
+        # blast_strength = obs['blast_strength']
+
+        danger = np.ndarray(shape=(11, 11), dtype=int)
+
+        for x in range(11):
+            for y in range(11):
+                danger[x][y] = 10
+                if board[x][y] == 4:
+                    board[x][y] = 0
+                    danger[x][y] = 0
+                elif board[x][y] == 3:
+                    board[x][y] = 0
+                elif board[x][y] == 10:
+                    board[x][y] = 1
+                elif board[x][y] > 10:
+                    board[x][y] = 5
+                elif 6 <= board[x][y] <= 8:
+                    board[x][y] = 3
+                elif board[x][y] == 1:
+                    board[x][y] = 4
+
+        for x in range(11):
+            for y in range(11):
+                if bomb_life[x][y] > 0:
+                    strength = int(bomb_blast_strength[x][y]+0.5)
+                    for tx in range(max(0, x-strength+1), min(11, x+strength)):
+                        danger[tx][y] = min(danger[tx][y], bomb_life[x][y])
+                    for ty in range(max(0, y-strength+1), min(11, y+strength)):
+                        danger[x][ty] = min(danger[x][ty], bomb_life[x][y])
+
+        obs['danger'] = danger
+
         return obs
 
     def render(self):
