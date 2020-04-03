@@ -24,3 +24,22 @@ pip install -r requirements.txt
 * demo: deploy the trained models for visualization
 * env: a pommerman wrapper to incorporate with RLlib
 * reward: an interface to build custom reward functions
+
+### Running Script
+! Make sure you are in the root of this project
+* First set up the environment path
+```bash
+conda activate pommerman
+export PYTHONPATH=$PYTHONPATH:.
+```
+
+* then running the script
+```bash
+python script/A2C/Train_curriculum.py game_training
+```
+
+* running the evaluation script to see your result
+* Do not forget to modified your model's path in script
+```bash
+python script/A2C/Train_curriculum.py game_training
+```
