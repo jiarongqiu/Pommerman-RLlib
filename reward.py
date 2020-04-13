@@ -1,5 +1,6 @@
+import math
 from pommerman import constants
-
+from utils import compute_wood
 
 class Reward():
 
@@ -7,80 +8,150 @@ class Reward():
         self.config = config
         print("Reward Config:", config)
 
-    def get_reward(self, obs, action, agent_id):
-        if not self.config or self.config['version'] == 'default':
-            return self.default(obs, action, agent_id)
-        elif self.config['version'] == 'v0':
-            return self.v0(obs, action, agent_id)
-
+    def get_reward(self, action,obs,info):
+        if not self.config or self.config['version'] == 'v0':
+            return self.v0(action,obs,info)
+        elif self.config['version'] == 'v1':
+            return self.v1(action,obs,info)
+        elif self.config['version'] == 'v2':
+            return self.v2(action, obs, info)
+        elif self.config['version'] == 'v3':
+            return self.v3(action, obs, info)
         ### Add more reward funcs here
 
         return 0
 
-    def default(self, obs, action, agent_id):
+    def v0(self, action,obs,info):
+        agent_id = info['agent_id']
         if len(obs["alive"]) == 1:
-            # An agent won. Give them +1, others -1.
             if agent_id in obs['alive']:
-                return 1
+                reward = 1
             else:
-                return -1
-
-        elif obs["step_count"] >= 500:
-            # Game is over from time. Everyone gets -1.
-            return -1
+                reward = -1
+        elif obs['step_count'] >= 800:
+            reward = -1
         else:
             # Game running: 0 for alive, -1 for dead.
             if agent_id in obs['alive']:
-                return 0
+                reward = 0
             else:
-                return -1
+                reward = -1
+        return reward,info
 
-    def v0(self, obs, action, agent_id):
-
+    def v1(self, action, obs, state):
+        #min -2 max 2
+        agent_id = state['agent_id']
         reward = 0
-        x, y = obs['position']
-        board = obs['board']
-        alive_agents = obs['alive']
-        blast_strength = obs['blast_strength']
-        ammo = obs['ammo']
-        board_size = board.shape[0]
 
+        if obs['position'] not in state['visited']:
+            state['visited'].add(obs['position'])
+            reward += 0.001
 
-        if 1 <= action <= 4:
-            if action == 1:
-                y -= 1
-            elif action == 2:
-                y += 1
-            elif action == 3:
-                x -= 1
+        if obs['blast_strength']>state['strength']:
+            reward += 0.01
+            state['strength'] = obs['blast_strength']
+
+        if obs['ammo']>state['ammo']:
+            reward += 0.01
+            state['ammo'] = obs['ammo']
+
+        if len(obs['alive']) < len(state['alive']):
+            if agent_id in obs['alive']:
+                reward += 0.5
             else:
-                x += 1
-            if 0<=x<board_size and 0<=y<board_size:
-                if board[y][x] == 6 or board[y][x] == 7:
-                    reward += 5
+                reward += -2
+            state['alive'] = obs['alive']
+        elif obs['step_count'] >= 800:
+            reward += -2
+
+        return reward, state
+
+    def v2(self, action, obs, state):
+        #min -2 max 2
+        agent_id = state['agent_id']
+        reward = 0
+        if action == 5 and state["prev_obs"]["ammo"]>0:
+            if obs['position'] not in state["bombs"]:
+                state["bombs"][obs['position']] = 0
+
+        if obs['position'] not in state['visited']:
+            state['visited'].add(obs['position'])
+            reward += 0.01
+
+        # if obs['blast_strength']>state['strength']:
+        #     reward += 0.01
+        #     state['strength'] = obs['blast_strength']
+
+        # if obs['ammo']>state['ammo']:
+        #     reward += 0.01
+        #     state['ammo'] = obs['ammo']
+
+        if len(obs['alive']) < len(state['alive']):
+            if agent_id in obs['alive']:
+                reward += 1
             else:
-                reward -= 5
+                reward += -1
+            state['alive'] = obs['alive']
+        else:
+            reward += -1.0/800
+        # elif (obs['step_count']+1)%200 == 0:
+        #     reward += -0.25
+        delete = set()
+        for y,x in state["bombs"]:
+            neighbor = compute_wood(obs['board'], (y, x), obs['blast_strength'])
+            wood_num = len([e for e in neighbor if e == 2])
+            if obs["board"][y][x] == 3 or obs["board"][y][x] == state["agent_id"]:
+                if wood_num == 0:
+                    delete.add((y,x))
+                else:
+                    state["bombs"][y,x] = wood_num
+            else:
+                diff = state["bombs"][y,x] - wood_num
+                reward += 0.1*diff
+                delete.add((y,x))
+        state["bombs"] = {(y,x):state["bombs"][y,x] for y,x in state["bombs"] if (y,x) not in delete}
 
-        if action == 5:
-            def check_valid_bomb(x, y, board, blast_strength):
-                x_min = max(0, x - blast_strength)
-                x_max = min(board_size, x + blast_strength)
-                for j in range(x_min, x_max):
-                    if board[y][j] == 2:
-                        return True
+        return reward, state
 
-                y_min = max(0, y - blast_strength)
-                y_max = min(board_size, y + blast_strength)
-                for i in range(y_min, y_max):
-                    if board[i][x] == 2:
-                        return True
-            if check_valid_bomb(x,y,board,blast_strength):
-                reward += 2
+    def v3(self, action, obs, state):
+        agent_id = state['agent_id']
+        reward = 0
+        if action == 5 and state["prev_obs"]["ammo"]>0:
+            if obs['position'] not in state["bombs"]:
+                state["bombs"][obs['position']] = 0
+                wood_num = compute_wood(obs['board'], obs['position'], obs['blast_strength'])
+                reward += 0.1*wood_num
 
-        if len(alive_agents) == 1 and agent_id in alive_agents:
-            reward += 100
+        if obs['position'] not in state['visited']: # +1
+            state['visited'].add(obs['position'])
+            reward += 0.1
 
-        if agent_id not in alive_agents:
-            reward -= 100
+        if len(obs['alive']) < len(state['alive']):
+            if agent_id in obs['alive']:
+                reward += 1
+            state['alive'] = obs['alive']
+        if obs['blast_strength']>state['blast_strength']:
+            reward += 0.1
+            state['blast_strength'] = obs['blast_strength']
+        if obs['ammo'] > state['ammo']:
+            reward += 0.1
+            state['ammo'] = obs['ammo']
+        # else:
+        #     reward += -0.5/800
+        # # elif (obs['step_count']+1)%200 == 0:
+        # #     reward += -0.25
+        delete = set()
+        for y,x in state["bombs"]:
+            wood_num = compute_wood(obs['board'], (y, x), obs['blast_strength'])
+            if obs["board"][y][x] == 3 or obs["board"][y][x] == state["agent_id"]:
+                if wood_num == 0:
+                    delete.add((y,x))
+                else:
+                    state["bombs"][y,x] = wood_num
+            else:
+                diff = state["bombs"][y,x] - wood_num
+                reward += 0.1*diff
+                delete.add((y,x))
+        state["bombs"] = {(y,x):state["bombs"][y,x] for y,x in state["bombs"] if (y,x) not in delete}
 
-        return reward
+        return reward, state
