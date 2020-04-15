@@ -13,7 +13,7 @@ class TFCNN(TFModelV2):
         super(TFCNN, self).__init__(obs_space, action_space,
                                     num_outputs, model_config, name)
         self.num_outputs = num_outputs
-        self.init2()
+        self.init()
 
     def init(self):
         _board = tf.keras.layers.Input(shape=[11, 11, 4], name="board")
@@ -45,38 +45,10 @@ class TFCNN(TFModelV2):
         # net = tf.keras.layers.Dense(64, activation=tf.nn.relu, kernel_initializer=normc_initializer(0.01))(net)
         # net = tf.keras.layers.BatchNormalization()(net)
 
-        action_out = tf.keras.layers.Dense(self.num_outputs,kernel_initializer=kernel_initializer)(net)
-        value_out = tf.keras.layers.Dense(1,kernel_initializer=kernel_initializer)(net)
+        action_out = tf.keras.layers.Dense(self.num_outputs)(net)
+        value_out = tf.keras.layers.Dense(1)(net)
 
         self.base_model = tf.keras.Model([_board, _attribute], [action_out, value_out])
-        self.register_variables(self.base_model.variables)
-
-
-
-    def init2(self):
-
-        _board = tf.keras.layers.Input(shape=[11,11,4], name="board")
-        _attribute = tf.keras.layers.Input(shape=[4],name="attribute")
-
-        net = _board
-        net = tf.keras.layers.Conv2D(256,3,1,padding="valid",activation=tf.nn.relu)(net) # 9x9
-        net = tf.keras.layers.Conv2D(256,3,1, padding="valid", activation=tf.nn.relu)(net) # 7x7
-
-        net = tf.keras.layers.Conv2D(128, 3, 1, padding="valid", activation=tf.nn.relu)(net) # 5x5
-        net = tf.keras.layers.Conv2D(128, 3, 1, padding="valid", activation=tf.nn.relu)(net) # 3x3
-
-        net = tf.keras.layers.Conv2D(64, 3, 1, padding="valid", activation=tf.nn.relu)(net)  # 1x1
-        net = tf.reshape(net,(-1,net.shape[-1]))
-
-        net = tf.concat([net,_attribute],axis=1)
-
-        action_net = tf.keras.layers.Dense(64,activation=tf.nn.relu)(net)
-        action_out = tf.keras.layers.Dense(self.num_outputs)(action_net)
-
-        value_net = tf.keras.layers.Dense(64, activation=tf.nn.relu)(net)
-        value_out = 10*tf.keras.layers.Dense(1)(value_net)
-
-        self.base_model = tf.keras.Model([_board,_attribute],[action_out,value_out])
         self.register_variables(self.base_model.variables)
 
     def forward(self, input_dict, state, seq_lens):
